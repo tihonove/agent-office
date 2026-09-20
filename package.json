@@ -1,0 +1,29 @@
+{
+  "name": "agent-office-repo",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm test -w @agent-office/office",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "start": "node packages/office/src/main.ts",
+    "dev": "npm run dev -w @agent-office/dashboard",
+    "schema": "ts-json-schema-generator --path packages/shared/src/manifest.ts --type Manifest --tsconfig packages/shared/tsconfig.json --no-type-check --out packages/shared/manifest.schema.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "@types/node": "^24.0.0",
+    "eslint": "^10.11.0",
+    "ts-json-schema-generator": "^2.9.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.70.0"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@agent-office/shared",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./manifest.schema.json": "./manifest.schema.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  }
+}

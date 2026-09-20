@@ -1,0 +1,549 @@
+{
+  "$ref": "#/definitions/Manifest",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "AnswerCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "is": {
+          "type": "string"
+        },
+        "request": {
+          "description": "id объявления из раздела `requests`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request",
+        "is"
+      ],
+      "type": "object"
+    },
+    "Arrows": {
+      "additionalProperties": false,
+      "description": "Стрелки — переходы вокруг захода роли. Агент состояние не двигает: он заявляет исход, а стрелку применяет офис. Пропал агент — узел возвращается туда, откуда его увела стрелка `start`.",
+      "properties": {
+        "outcomes": {
+          "additionalProperties": {
+            "$ref": "#/definitions/State"
+          },
+          "description": "Заявленный исход → состояние узла. Если задано, других исходов роль заявить не может.",
+          "propertyNames": {
+            "description": "Исход, который роль заявляет, закончив заход: «готово», «отказ»…"
+          },
+          "type": "object"
+        },
+        "start": {
+          "$ref": "#/definitions/State",
+          "description": "Состояние узла, пока роль на нём работает. Уводит узел из-под предиката, чтобы тот не сработал дважды."
+        }
+      },
+      "type": "object"
+    },
+    "ArtifactCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/ArtifactKind"
+        },
+        "where": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "…и с такими значениями в шапке: `where: { итог: годно }`.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "ArtifactKind": {
+      "description": "Вид артефакта: «постановка», «отчёт», «декомпозиция»…",
+      "type": "string"
+    },
+    "ChildrenCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "$ref": "#/definitions/OneOrMany%3CState%3E",
+          "description": "Дети есть, и все — в одном из этих состояний."
+        },
+        "any": {
+          "$ref": "#/definitions/OneOrMany%3CState%3E",
+          "description": "Хотя бы один ребёнок — в одном из этих состояний."
+        },
+        "none": {
+          "$ref": "#/definitions/OneOrMany%3CState%3E",
+          "description": "Ни одного ребёнка в этих состояниях."
+        }
+      },
+      "type": "object"
+    },
+    "Condition": {
+      "additionalProperties": false,
+      "description": "Условие — чистая функция от снимка мира и узла. На условиях стоят предикаты ролей, переходы и запросы человеку; раз они чистые, сверка идемпотентна.\n\nОбъект — это «И» своих ключей. Ключи вычисляются в порядке записи, до первого невыполненного: поэтому `judge`, записанный последним, запускается только когда остальное уже сошлось.\n\n```yaml when: { kind: заявка, state: приёмка, answer: { request: приёмка, is: принять } } ```",
+      "properties": {
+        "all": {
+          "items": {
+            "$ref": "#/definitions/Condition"
+          },
+          "type": "array"
+        },
+        "answer": {
+          "$ref": "#/definitions/AnswerCondition",
+          "description": "На объявленный запрос получен такой ответ — в текущую эпоху состояния."
+        },
+        "any": {
+          "items": {
+            "$ref": "#/definitions/Condition"
+          },
+          "type": "array"
+        },
+        "artifact": {
+          "$ref": "#/definitions/ArtifactCondition",
+          "description": "На узле есть артефакт такого вида."
+        },
+        "children": {
+          "$ref": "#/definitions/ChildrenCondition",
+          "description": "Состояния детей узла."
+        },
+        "fields": {
+          "description": "Все эти поля у узла заполнены.",
+          "items": {
+            "$ref": "#/definitions/FieldName"
+          },
+          "type": "array"
+        },
+        "judge": {
+          "$ref": "#/definitions/JudgeDecl",
+          "description": "Суждение дешёвого агента. Пока вердикта нет, условие не выполнено."
+        },
+        "kind": {
+          "$ref": "#/definitions/OneOrMany%3CKind%3E",
+          "description": "Род узла — один из перечисленных."
+        },
+        "not": {
+          "$ref": "#/definitions/Condition"
+        },
+        "result": {
+          "$ref": "#/definitions/ResultCondition",
+          "description": "Роль заявила исход — в текущую эпоху состояния."
+        },
+        "state": {
+          "$ref": "#/definitions/OneOrMany%3CState%3E",
+          "description": "Состояние узла — одно из перечисленных."
+        }
+      },
+      "type": "object"
+    },
+    "Duration": {
+      "description": "Длительность в манифесте: `'30m'`, `'24h'`, `'2d'`.",
+      "type": "string"
+    },
+    "ExecutorDecl": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "description": "Аргументы исполнителю насквозь; офис их не толкует (например, `--worktree`).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "model": {
+          "type": "string"
+        },
+        "resumeWithin": {
+          "$ref": "#/definitions/Duration",
+          "description": "Разрыв короче — продолжаем сессию, длиннее — начинаем начисто от проекции. По умолчанию 1h."
+        },
+        "type": {
+          "description": "Какой адаптер исполняет: `claude`, `fake`…",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "ExecutorName": {
+      "description": "Имя исполнителя из раздела `executors` манифеста.",
+      "type": "string"
+    },
+    "FieldName": {
+      "description": "Имя поля узла: «описание», «критерий», «область»…",
+      "type": "string"
+    },
+    "JudgeDecl": {
+      "additionalProperties": false,
+      "description": "Суждение — условие, которое нельзя вычислить из мира: его выносит дешёвый агент («код соответствует постановке?»). Чтобы сверка оставалась чистой функцией, суждение становится частью мира — фактом-вердиктом. Пока автозапуска нет, вердикт вносит человек из дашборды.",
+      "properties": {
+        "ask": {
+          "description": "Вопрос, на который нужен ответ «да / нет».",
+          "type": "string"
+        },
+        "executor": {
+          "$ref": "#/definitions/ExecutorName"
+        },
+        "id": {
+          "description": "Имя суждения: по нему вердикт находит своё условие.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "ask"
+      ],
+      "type": "object"
+    },
+    "Kind": {
+      "description": "Род узла: «цель», «заявка», «единица»…",
+      "type": "string"
+    },
+    "KindDecl": {
+      "additionalProperties": false,
+      "properties": {
+        "closed": {
+          "description": "Состояния, в которых узел больше не «открыт» — не занимает место под потолком `maxOpen`.",
+          "items": {
+            "$ref": "#/definitions/State"
+          },
+          "type": "array"
+        },
+        "states": {
+          "items": {
+            "$ref": "#/definitions/State"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "states"
+      ],
+      "type": "object"
+    },
+    "Manifest": {
+      "additionalProperties": false,
+      "description": "Манифест — всё, что проект объявляет офису (`office.yaml`). Офис не знает слов «аналитик» или «приёмка»: он применяет объявления. Эталон формата — examples/toy/office.yaml.",
+      "properties": {
+        "areas": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": "Карта областей: имя → пути. Офис её не толкует, только кладёт в проекцию.",
+          "type": "object"
+        },
+        "askDeadline": {
+          "$ref": "#/definitions/Duration",
+          "description": "Дедлайн вопроса агента, если он не указал свой. По умолчанию 24h."
+        },
+        "executors": {
+          "additionalProperties": {
+            "$ref": "#/definitions/ExecutorDecl"
+          },
+          "description": "Кто умеет исполнять роли.",
+          "propertyNames": {
+            "description": "Имя исполнителя из раздела `executors` манифеста."
+          },
+          "type": "object"
+        },
+        "inbox": {
+          "additionalProperties": false,
+          "description": "Куда падают заявки человека.",
+          "properties": {
+            "kind": {
+              "$ref": "#/definitions/Kind"
+            },
+            "state": {
+              "$ref": "#/definitions/State"
+            }
+          },
+          "required": [
+            "kind",
+            "state"
+          ],
+          "type": "object"
+        },
+        "kinds": {
+          "additionalProperties": {
+            "$ref": "#/definitions/KindDecl"
+          },
+          "description": "Роды узлов и их состояния.",
+          "propertyNames": {
+            "description": "Род узла: «цель», «заявка», «единица»…"
+          },
+          "type": "object"
+        },
+        "requests": {
+          "description": "Когда звать человека и что будет, если он промолчит.",
+          "items": {
+            "$ref": "#/definitions/RequestDecl"
+          },
+          "type": "array"
+        },
+        "roles": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Role"
+          },
+          "propertyNames": {
+            "description": "Имя роли: «аналитик», «реализатор»…"
+          },
+          "type": "object"
+        },
+        "spawns": {
+          "description": "Порождения: какой артефакт создаёт какие узлы.",
+          "items": {
+            "$ref": "#/definitions/SpawnDecl"
+          },
+          "type": "array"
+        },
+        "transitions": {
+          "description": "Переходы, не привязанные к заходу роли: по ответу человека, по детям, по артефакту.",
+          "items": {
+            "$ref": "#/definitions/TransitionDecl"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "inbox",
+        "kinds",
+        "executors",
+        "roles"
+      ],
+      "type": "object"
+    },
+    "OneOrMany<Kind>": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Kind"
+        },
+        {
+          "items": {
+            "$ref": "#/definitions/Kind"
+          },
+          "type": "array"
+        }
+      ],
+      "description": "В YAML удобно писать и `state: новая`, и `state: [новая, анализ]`."
+    },
+    "OneOrMany<State>": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/State"
+        },
+        {
+          "items": {
+            "$ref": "#/definitions/State"
+          },
+          "type": "array"
+        }
+      ],
+      "description": "В YAML удобно писать и `state: новая`, и `state: [новая, анализ]`."
+    },
+    "Outcome": {
+      "description": "Исход, который роль заявляет, закончив заход: «готово», «отказ»…",
+      "type": "string"
+    },
+    "RequestDecl": {
+      "additionalProperties": false,
+      "description": "Объявленный запрос человеку: открывается по условию, раз в эпоху состояния узла.",
+      "properties": {
+        "deadline": {
+          "$ref": "#/definitions/Duration"
+        },
+        "default": {
+          "description": "Исход по молчанию — один из `options`.",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "question": {
+          "type": "string"
+        },
+        "when": {
+          "$ref": "#/definitions/Condition"
+        }
+      },
+      "required": [
+        "id",
+        "when",
+        "question",
+        "options",
+        "default",
+        "deadline"
+      ],
+      "type": "object"
+    },
+    "ResultCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "outcome": {
+          "$ref": "#/definitions/Outcome",
+          "description": "Без `outcome` — любой исход."
+        },
+        "role": {
+          "$ref": "#/definitions/RoleName"
+        }
+      },
+      "required": [
+        "role"
+      ],
+      "type": "object"
+    },
+    "Role": {
+      "additionalProperties": false,
+      "description": "Роль — кто и когда нужен узлу. Объявляется в манифесте; офис лишь сверяет: где предикат истинен, узел дозрел, а агента нет — там агента надо поднять.",
+      "properties": {
+        "arrows": {
+          "$ref": "#/definitions/Arrows",
+          "description": "Стрелки: как заход роли двигает состояние узла."
+        },
+        "executor": {
+          "$ref": "#/definitions/ExecutorName",
+          "description": "Кто исполняет — имя из раздела `executors`."
+        },
+        "needs": {
+          "description": "Требования к входу — зрелость узла. Нет этих полей — роль не поднимается, узел ждёт того, кто их добавит.",
+          "items": {
+            "$ref": "#/definitions/FieldName"
+          },
+          "type": "array"
+        },
+        "prompt": {
+          "description": "Промпт роли: путь относительно каталога манифеста.",
+          "type": "string"
+        },
+        "sees": {
+          "description": "Правило проекции: какие артефакты роли нужны. В проекцию попадёт пересечение с аудиторией артефактов.",
+          "items": {
+            "$ref": "#/definitions/SeesRule"
+          },
+          "type": "array"
+        },
+        "when": {
+          "$ref": "#/definitions/Condition",
+          "description": "Предикат: на каких узлах нужен агент этой роли."
+        }
+      },
+      "required": [
+        "executor",
+        "prompt",
+        "when"
+      ],
+      "type": "object"
+    },
+    "RoleName": {
+      "description": "Имя роли: «аналитик», «реализатор»…",
+      "type": "string"
+    },
+    "SeesRule": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "description": "Чьи артефакты брать. По умолчанию — только самого узла.",
+          "items": {
+            "enum": [
+              "self",
+              "ancestors",
+              "children"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ArtifactKind"
+            },
+            {
+              "const": "*",
+              "type": "string"
+            }
+          ],
+          "description": "Вид артефакта; `'*'` — любой."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "SpawnDecl": {
+      "additionalProperties": false,
+      "description": "Порождение: артефакт вида `artifact` создаёт дочерние узлы — агент узлов не создаёт, он публикует. В шапке такого артефакта обязан быть список `nodes`; каждый элемент — поля будущего узла.",
+      "properties": {
+        "artifact": {
+          "$ref": "#/definitions/ArtifactKind"
+        },
+        "kind": {
+          "$ref": "#/definitions/Kind",
+          "description": "Род и начальное состояние порождённых узлов."
+        },
+        "maxOpen": {
+          "description": "Потолок открытых детей у узла: остальные ждут своей очереди. Этого хватает, чтобы дерево не взорвалось.",
+          "type": "number"
+        },
+        "requires": {
+          "description": "Поля, без которых офис не примет артефакт.",
+          "items": {
+            "$ref": "#/definitions/FieldName"
+          },
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/definitions/State"
+        }
+      },
+      "required": [
+        "artifact",
+        "kind",
+        "state"
+      ],
+      "type": "object"
+    },
+    "State": {
+      "description": "Состояние узла: «новая», «в работе», «готово»… Набор состояний у каждого рода свой.",
+      "type": "string"
+    },
+    "TransitionDecl": {
+      "additionalProperties": false,
+      "description": "Переход: `from → to when …`. На узел — один переход за тик, первый подходящий.",
+      "properties": {
+        "from": {
+          "$ref": "#/definitions/OneOrMany%3CState%3E"
+        },
+        "kind": {
+          "$ref": "#/definitions/Kind"
+        },
+        "to": {
+          "$ref": "#/definitions/State"
+        },
+        "when": {
+          "$ref": "#/definitions/Condition"
+        }
+      },
+      "required": [
+        "kind",
+        "from",
+        "to",
+        "when"
+      ],
+      "type": "object"
+    }
+  }
+}

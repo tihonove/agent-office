@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=../../packages/shared/manifest.schema.json
+# Манифест игрушечного проекта — он же эталон формата.
+# Схема (строкой выше) сгенерирована из типов packages/shared/src/manifest.ts: редактор подсказывает ключи и показывает описания.
+# Офис не знает слов «аналитик» и «приёмка»: всё, что ниже, — объявления проекта.
+
+inbox: { kind: заявка, state: новая }          # куда падают заявки человека
+
+kinds:
+  заявка:
+    states: [новая, анализ, к реализации, реализация, приёмка, готово, отклонена]
+    closed: [готово, отклонена]
+
+executors:
+  # args идут исполнителю насквозь: офис их не толкует
+  claude: { type: claude, model: sonnet, args: [--permission-mode, acceptEdits, --allowedTools, 'Bash(git *)'] }
+
+areas:                                          # карта областей: офис не толкует, кладёт в проекцию
+  заметки: [notes/**]
+
+roles:
+  аналитик:
+    executor: claude
+    prompt: roles/аналитик.md
+    when: { kind: заявка, state: новая }        # предикат: где нужен агент
+    needs: [описание]                           # зрелость: нет поля — роль не поднимается
+    sees: [{ kind: '*', from: [self, ancestors] }]
+    arrows:
+      start: анализ
+      outcomes: { готово: к реализации, разбито: анализ, отказ: отклонена }
+
+  реализатор:
+    executor: claude
+    prompt: roles/реализатор.md
+    when: { kind: заявка, state: к реализации }
+    needs: [критерий, область]
+    sees: [{ kind: постановка, from: [self, ancestors] }, { kind: замечания }]
+    arrows:
+      start: реализация
+      outcomes: { готово: приёмка }
+
+transitions:
+  - { kind: заявка, from: приёмка, to: готово,       when: { answer: { request: приёмка, is: принять } } }
+  - { kind: заявка, from: приёмка, to: к реализации, when: { answer: { request: приёмка, is: вернуть } } }
+  # учётный узел закрывается по детям
+  - { kind: заявка, from: анализ,  to: готово,       when: { children: { all: [готово, отклонена] } } }
+
+spawns:                                         # артефакт «декомпозиция» создаёт дочерние заявки
+  - { artifact: декомпозиция, kind: заявка, state: новая, requires: [описание], maxOpen: 3 }
+
+requests:                                       # когда звать человека и что будет, если он промолчит
+  - id: приёмка
+    when: { kind: заявка, state: приёмка }
+    question: Принять результат?
+    options: [принять, вернуть]
+    default: принять
+    deadline: 24h

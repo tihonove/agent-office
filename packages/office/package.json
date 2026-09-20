@@ -1,0 +1,20 @@
+{
+  "name": "@agent-office/office",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "agent-office": "./src/main.ts"
+  },
+  "scripts": {
+    "test": "node --test 'test/**/*.test.ts'",
+    "typecheck": "tsc --noEmit -p .",
+    "start": "node src/main.ts"
+  },
+  "dependencies": {
+    "@agent-office/shared": "*",
+    "ajv": "^8.20.0",
+    "ajv-i18n": "^4.2.0",
+    "yaml": "^2.8.0"
+  }
+}
