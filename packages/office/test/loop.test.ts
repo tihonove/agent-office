@@ -2,59 +2,19 @@
 // Тестируем петлю, а не классы.
 
 import assert from 'node:assert/strict'
-import { mkdtemp, readdir, readFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import type { AgentKey, Manifest, NodeId } from '@agent-office/shared'
-import { ManualClock } from '../src/adapters/clock.ts'
-import { FakeExecutor, scriptFromDir, type Script } from '../src/adapters/executor-fake.ts'
+import type { AgentKey, Manifest } from '@agent-office/shared'
+import { scriptFromDir, type Script } from '../src/adapters/executor-fake.ts'
 import { fold } from '../src/core/fold.ts'
-import { StoreDIToken } from '../src/core/ports.ts'
-import { loadManifest } from '../src/manifest/load.ts'
-import { createTestContainer } from '../src/modules/testProfile.ts'
-import { HumanDeskDIToken } from '../src/services/humanDesk.ts'
-import { JournalDIToken } from '../src/services/journal.ts'
-import { ReconcilerDIToken } from '../src/services/reconciler.ts'
-import { SnapshotServiceDIToken } from '../src/services/snapshotService.ts'
+import { file, openOffice } from './harness.ts'
 
 const TOY = join(import.meta.dirname, '../../../examples/toy')
 const HOUR = 36e5
 
-/** Офис из тестового профиля: те же сервисы, что в бою, вокруг заглушек и ручных часов. */
-async function setup(script: Script = scriptFromDir(join(TOY, 'fake')), tweak?: (m: Manifest) => void) {
-    const loaded = await loadManifest(join(TOY, 'office.yaml'))
-    tweak?.(loaded.manifest)
-
-    const clock = new ManualClock()
-    const executor = new FakeExecutor(script)
-    const places = await mkdtemp(join(tmpdir(), 'office-'))
-    const container = createTestContainer({ loaded, places, clock, executors: { claude: executor } })
-
-    const journal = container.get(JournalDIToken)
-    const desk = container.get(HumanDeskDIToken)
-    const reconciler = container.get(ReconcilerDIToken)
-    const snapshots = container.get(SnapshotServiceDIToken)
-    const store = container.get(StoreDIToken)
-    await journal.load()
-
-    // Тикать, пока мир не успокоится.
-    const settle = async () => {
-        for (let i = 0; i < 50; i++) {
-            const before = journal.facts().length
-            await reconciler.tick()
-            if (journal.facts().length === before) {
-                return
-            }
-        }
-        assert.fail('мир не успокоился за 50 тиков')
-    }
-    const node = (id: string) => journal.world().nodes.get(id as NodeId)!
-    const types = () => journal.facts().map((f) => f.type)
-    return { journal, desk, reconciler, snapshots, store, clock, executor, settle, node, types }
-}
-
-const file = (head: string, body = '') => `---\n${head}\n---\n${body}\n`
+const setup = (script: Script = scriptFromDir(join(TOY, 'fake')), tweak?: (m: Manifest) => void) =>
+    openOffice(join(TOY, 'office.yaml'), script, tweak)
 
 test('заявка проходит весь конвейер, журнал — единственная правда, тихий тик ничего не пишет', async () => {
     const { journal, desk, reconciler, store, settle, node } = await setup()

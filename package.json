@@ -10,12 +10,14 @@
   ],
   "scripts": {
     "test": "npm test -w @agent-office/office",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit -p scripts",
     "start": "node packages/office/src/main.ts",
     "dev": "npm run dev -w @agent-office/dashboard",
     "schema": "ts-json-schema-generator --path packages/shared/src/manifest.ts --type Manifest --tsconfig packages/shared/tsconfig.json --no-type-check --out packages/shared/manifest.schema.json",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "office": "node packages/office/src/main.ts .",
+    "stand": "node scripts/stand.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

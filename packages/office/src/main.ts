@@ -24,10 +24,16 @@ const { values, positionals } = parseArgs({
 })
 
 const project = resolve(positionals[0] ?? '.')
+const manifestFile = join(project, 'office.yaml')
 const dashboard = join(import.meta.dirname, '../../dashboard/dist')
 
+if (!existsSync(manifestFile)) {
+    console.error(`В ${project} нет манифеста office.yaml.\nЗапуск: agent-office <каталог проекта> [--fake] [--port 4700] [--tick 2000]`)
+    process.exit(1)
+}
+
 const container = createProductionContainer({
-    loaded: await loadManifest(join(project, 'office.yaml')),
+    loaded: await loadManifest(manifestFile),
     project,
     fake: values.fake,
     port: Number(values.port),
