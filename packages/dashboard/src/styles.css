@@ -38,6 +38,7 @@ pre { margin: 4px 0; white-space: pre-wrap; word-break: break-word; font: 12px/1
 .card.flag { border-color: var(--warn); }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 .field { display: grid; gap: 4px; margin-top: 6px; }
+.field .name { font-size: 12px; color: var(--dim); }
 .grow { flex: 1; }
 
 button, input, select, textarea { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 4px 8px; }

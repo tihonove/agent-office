@@ -54,37 +54,57 @@ export function Inbox({ snapshot, act, onSelect }: Props) {
     )
 }
 
+// Строка формы вброса. Имя, известное из манифеста, показываем подписью; у дописанной руками строки имя набирают.
+type Row = { name: string; value: string; known: boolean }
+
 // Имена полей офису безразличны. Подсказываем те, без которых роли на входе не поднимутся (needs).
 function NewNode({ snapshot, act }: { snapshot: Snapshot; act: Act }) {
     const { manifest } = snapshot
     const hint = [...new Set(Object.values(manifest.roles)
         .filter((r) => [r.when.state].flat().includes(manifest.inbox.state))
         .flatMap((r) => r.needs ?? []))]
-    const blank = () => (hint.length ? hint : ['']).map((name) => ({ name, value: '' }))
+    // Подсказать нечего — остаётся пустая строка «имя + значение»: тупика быть не должно.
+    const blank = (): Row[] => (hint.length
+        ? hint.map((name) => ({ name, value: '', known: true }))
+        : [{ name: '', value: '', known: false }])
+    const kinds = Object.keys(manifest.kinds)
     const [kind, setKind] = useState(manifest.inbox.kind)
     const [rows, setRows] = useState(blank)
-    const edit = (i: number, patch: Partial<{ name: string; value: string }>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+    const edit = (i: number, patch: Partial<Row>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+
+    const fields = Object.fromEntries(rows
+        .filter((r) => r.name.trim() && r.value.trim())
+        .map((r) => [r.name.trim(), r.value]))
 
     const submit = async () => {
-        const fields = Object.fromEntries(rows.filter((r) => r.name && r.value).map((r) => [r.name, r.value]))
         await act('/api/nodes', { kind, fields })
         setRows(blank())
     }
 
     return (
         <div className="card">
-            <select value={kind} onChange={(e) => setKind(e.target.value)}>
-                {Object.keys(manifest.kinds).map((k) => <option key={k}>{k}</option>)}
-            </select>
+            {kinds.length > 1 && (
+                <select value={kind} onChange={(e) => setKind(e.target.value)}>
+                    {kinds.map((k) => <option key={k}>{k}</option>)}
+                </select>
+            )}
             {rows.map((r, i) => (
                 <div className="field" key={i}>
-                    <input placeholder="поле" value={r.name} onChange={(e) => edit(i, { name: e.target.value })} />
-                    <textarea placeholder="значение" rows={3} value={r.value} onChange={(e) => edit(i, { value: e.target.value })} />
+                    {r.known
+                        ? <label className="name" htmlFor={`новое-поле-${i}`}>{r.name}</label>
+                        : <input placeholder="поле" value={r.name} onChange={(e) => edit(i, { name: e.target.value })} />}
+                    <textarea
+                        id={`новое-поле-${i}`}
+                        placeholder={r.known ? undefined : 'значение'}
+                        rows={3}
+                        value={r.value}
+                        onChange={(e) => edit(i, { value: e.target.value })}
+                    />
                 </div>
             ))}
             <div className="row">
-                <button onClick={() => setRows([...rows, { name: '', value: '' }])}>+ поле</button>
-                <button className="primary" onClick={submit}>вбросить</button>
+                <button onClick={() => setRows([...rows, { name: '', value: '', known: false }])}>+ поле</button>
+                <button className="primary" disabled={Object.keys(fields).length === 0} onClick={submit}>вбросить</button>
             </div>
         </div>
     )
