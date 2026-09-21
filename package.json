@@ -16,7 +16,7 @@
     "schema": "ts-json-schema-generator --path packages/shared/src/manifest.ts --type Manifest --tsconfig packages/shared/tsconfig.json --no-type-check --out packages/shared/manifest.schema.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "office": "node packages/office/src/main.ts .",
+    "office": "npm run build -w @agent-office/dashboard || { echo '✗ дашборда не собралась — офис не поднимаю, ошибка выше' >&2; exit 1; } && node packages/office/src/main.ts .",
     "stand": "node scripts/stand.ts"
   },
   "devDependencies": {
