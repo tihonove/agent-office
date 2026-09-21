@@ -4,6 +4,7 @@
 //   npm run bundle    → dist/agent-office.js
 //
 // Один js-файл: офис со всеми зависимостями, схемой манифеста и собранной дашбордой внутри.
+// Рядом — та же схема отдельным файлом: на неё ссылается `$schema` в office.yaml чужого проекта (docs/manifest.md).
 // Дашборду вшивает подмена модуля adapters/dashboard.ts: из исходников он читает packages/dashboard/dist с диска,
 // в бандле — отдаёт файлы из памяти. Остальной офис разницы не видит.
 //
@@ -12,7 +13,7 @@
 // (@agent-office/*) остаются приватными.
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
 import { build, type Plugin } from 'esbuild'
 
@@ -20,6 +21,7 @@ const REPO = resolve(import.meta.dirname, '..')
 const OUT = join(REPO, 'dist')
 const OFFICE = join(REPO, 'packages/office')
 const DASHBOARD = join(REPO, 'packages/dashboard/dist')
+const SCHEMA = join(REPO, 'packages/shared/manifest.schema.json')
 const BIN = 'agent-office.js'
 
 async function bundle(): Promise<void> {
@@ -41,6 +43,9 @@ async function bundle(): Promise<void> {
         plugins: [embedDashboard()],
         logLevel: 'warning',
     })
+
+    step('схема манифеста: manifest.schema.json')
+    copyFileSync(SCHEMA, join(OUT, 'manifest.schema.json'))
 
     console.log(`\nготово: ${join(OUT, BIN)}`)
 }

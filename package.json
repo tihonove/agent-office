@@ -11,7 +11,9 @@
     "agent-office": "dist/agent-office.js"
   },
   "files": [
-    "dist/agent-office.js"
+    "dist/agent-office.js",
+    "dist/manifest.schema.json",
+    "docs/"
   ],
   "publishConfig": {
     "access": "public"

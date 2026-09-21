@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=./node_modules/@tihonove/agent-office/dist/manifest.schema.json
+#
+# Готовая схема «конвейер»: заявка → аналитик → реализатор → приёмка человеком.
+# Описание — docs/recipes.md. Скопируй каталог в корень проекта целиком: office.yaml, office/roles/, fake/.
+#
+#   новая ─аналитик→ к реализации ─реализатор→ приёмка ─человек: «принять»→ готово
+#                                                        ─человек: «вернуть»→ к реализации
+#                                                        ─человек: «отложить» или молчание→ отложена
+
+inbox: { kind: заявка, state: новая }
+
+kinds:
+  заявка:
+    states: [новая, анализ, к реализации, реализация, приёмка, готово, отклонена, отложена]
+    closed: [готово, отклонена, отложена]
+
+executors:
+  # args уходят в claude как есть. Аналитику — только читать и смотреть историю, реализатору — git и проверки проекта.
+  читатель: { type: claude, model: sonnet, args: [--permission-mode, acceptEdits, --allowedTools, 'Bash(git log *)', 'Bash(git show *)'] }
+  разработчик: { type: claude, model: sonnet, args: [--permission-mode, acceptEdits, --allowedTools, 'Bash(git *)', 'Bash(npm *)'] }
+
+roles:
+  аналитик:
+    executor: читатель
+    prompt: office/roles/аналитик.md
+    when: { kind: заявка, state: новая }
+    needs: [описание]
+    sees: [{ kind: '*', from: [self, ancestors] }]
+    arrows:
+      start: анализ
+      outcomes: { готово: к реализации, отказ: отклонена }
+
+  реализатор:
+    executor: разработчик
+    prompt: office/roles/реализатор.md
+    when: { kind: заявка, state: к реализации }
+    needs: [критерий]
+    sees: [{ kind: постановка }, { kind: отчёт }]
+    arrows:
+      start: реализация
+      outcomes: { готово: приёмка }
+
+transitions:
+  - { kind: заявка, from: приёмка, to: готово,       when: { answer: { request: приёмка, is: принять } } }
+  - { kind: заявка, from: приёмка, to: к реализации, when: { answer: { request: приёмка, is: вернуть } } }
+  - { kind: заявка, from: приёмка, to: отложена,     when: { answer: { request: приёмка, is: отложить } } }
+
+requests:
+  - id: приёмка
+    when: { kind: заявка, state: приёмка }
+    question: >-
+      Реализатор сдал работу (артефакт «отчёт» на карточке узла). Принять?
+      Для «вернуть» сначала запиши узлу поле «замечания» — реализатор его увидит.
+    options: [принять, вернуть, отложить]
+    default: отложить
+    deadline: 3d
