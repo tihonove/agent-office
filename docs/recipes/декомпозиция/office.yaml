@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=./node_modules/@tihonove/agent-office/dist/manifest.schema.json
+#
+# Готовая схема «декомпозиция»: на входе штурман решает — вести заявку целиком или разбить на дочерние.
+# Разбивает он публикацией артефакта «курс» со списком nodes: узлы создаёт офис по объявлению в spawns.
+# Описание — docs/recipes.md. Скопируй каталог в корень проекта целиком: office.yaml, office/roles/, fake/.
+#
+#   новая ─штурман: «в работу»→ к анализу ─аналитик→ к реализации ─реализатор→ приёмка ─«принять»→ готово
+#         ─штурман: «разбито» + курс→ разбита      дети рождаются в «к анализу» и идут тем же путём;
+#                                                  разбита → готово, когда все дети готовы или отклонены
+#         ─штурман: «отказ»→ отклонена
+
+inbox: { kind: заявка, state: новая }
+
+kinds:
+  заявка:
+    states: [новая, прокладка, разбита, к анализу, анализ, к реализации, реализация, приёмка, готово, отклонена, отложена]
+    closed: [готово, отклонена, отложена]
+
+executors:
+  читатель: { type: claude, model: sonnet, args: [--permission-mode, acceptEdits, --allowedTools, 'Bash(git log *)', 'Bash(git show *)'] }
+  разработчик: { type: claude, model: sonnet, args: [--permission-mode, acceptEdits, --allowedTools, 'Bash(git *)', 'Bash(npm *)'] }
+
+roles:
+  штурман:
+    executor: читатель
+    prompt: office/roles/штурман.md
+    when: { kind: заявка, state: новая }
+    needs: [описание]
+    sees: [{ kind: '*', from: [self, ancestors] }]
+    arrows:
+      start: прокладка
+      outcomes: { в работу: к анализу, разбито: разбита, отказ: отклонена }
+
+  аналитик:
+    executor: читатель
+    prompt: office/roles/аналитик.md
+    when: { kind: заявка, state: к анализу }
+    needs: [описание]
+    sees: [{ kind: '*', from: [self, ancestors] }]    # от предков — курс родителя: зачем эта часть и что рядом
+    arrows:
+      start: анализ
+      outcomes: { готово: к реализации, отказ: отклонена }
+
+  реализатор:
+    executor: разработчик
+    prompt: office/roles/реализатор.md
+    when: { kind: заявка, state: к реализации }
+    needs: [критерий]
+    sees: [{ kind: постановка }, { kind: отчёт }]
+    arrows:
+      start: реализация
+      outcomes: { готово: приёмка }
+
+spawns:
+  # Дети рождаются сразу в «к анализу», мимо штурмана: иначе он стал бы дробить их снова.
+  # Одновременно открыты не больше двух, остальные ждут очереди.
+  - { artifact: курс, kind: заявка, state: к анализу, requires: [описание], maxOpen: 2 }
+
+transitions:
+  - { kind: заявка, from: приёмка, to: готово,       when: { answer: { request: приёмка, is: принять } } }
+  - { kind: заявка, from: приёмка, to: к реализации, when: { answer: { request: приёмка, is: вернуть } } }
+  - { kind: заявка, from: приёмка, to: отложена,     when: { answer: { request: приёмка, is: отложить } } }
+  # учётный узел закрывается по детям
+  - { kind: заявка, from: разбита, to: готово, when: { children: { all: [готово, отклонена] } } }
+
+requests:
+  - id: приёмка
+    when: { kind: заявка, state: приёмка }
+    question: >-
+      Реализатор сдал работу (артефакт «отчёт» на карточке узла). Принять?
+      Для «вернуть» сначала запиши узлу поле «замечания» — реализатор его увидит.
+    options: [принять, вернуть, отложить]
+    default: отложить
+    deadline: 3d
