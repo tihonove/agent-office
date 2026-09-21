@@ -17,12 +17,14 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "office": "npm run build -w @agent-office/dashboard || { echo '✗ дашборда не собралась — офис не поднимаю, ошибка выше' >&2; exit 1; } && node packages/office/src/main.ts .",
-    "stand": "node scripts/stand.ts"
+    "stand": "node scripts/stand.ts",
+    "pack": "node scripts/pack.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@types/node": "^24.0.0",
+    "esbuild": "^0.28.2",
     "eslint": "^10.11.0",
     "ts-json-schema-generator": "^2.9.0",
     "typescript": "^5.9.0",

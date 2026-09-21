@@ -1,10 +1,9 @@
 // Дверь для человека: REST + SSE на голом node:http. Контракт — packages/shared/src/api.ts.
 // Каждая команда человека — факт; сразу после неё тик, чтобы дашборда увидела последствия.
 
-import { createReadStream, existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { extname, join, normalize } from 'node:path'
+import { extname, join } from 'node:path'
 import type {
     AgentKey, AnswerBody, CreateNodeBody, FieldsBody, InvokeBody, NodeId, RequestId, VerdictBody,
 } from '@agent-office/shared'
@@ -16,11 +15,12 @@ import { HumanDesk, HumanDeskDIToken } from '../services/humanDesk.ts'
 import { Journal, JournalDIToken } from '../services/journal.ts'
 import { Reconciler, ReconcilerDIToken } from '../services/reconciler.ts'
 import { SnapshotService, SnapshotServiceDIToken } from '../services/snapshotService.ts'
+import type { Dashboard } from './dashboard.ts'
 
 export type HttpConfig = {
     port: number
     /** Собранная дашборда, если есть. */
-    staticDir?: string
+    dashboard?: Dashboard
 }
 
 export const HttpConfigDIToken = token<HttpConfig>('HttpConfig')
@@ -152,9 +152,9 @@ export class HttpDoor {
             return sendJson(res, 200, reply.json)
         }
 
-        const { staticDir } = this.config
-        if (req.method === 'GET' && staticDir && !url.pathname.startsWith('/api/')) {
-            return sendStatic(res, staticDir, url.pathname)
+        const { dashboard } = this.config
+        if (req.method === 'GET' && dashboard && !url.pathname.startsWith('/api/')) {
+            return sendStatic(res, dashboard, url.pathname)
         }
         sendJson(res, 404, { ok: false, error: `нет такого: ${req.method} ${url.pathname}` })
     }
@@ -191,11 +191,25 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
     res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' }).end(JSON.stringify(body))
 }
 
-const MIME: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' }
+const MIME: Record<string, string> = {
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.ico': 'image/x-icon',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+}
 
-function sendStatic(res: ServerResponse, dir: string, pathname: string): void {
-    const wanted = join(dir, normalize(pathname).replace(/^(\.\.[/\\])+/, ''))
-    const file = existsSync(wanted) && extname(wanted) ? wanted : join(dir, 'index.html')   // всё прочее — SPA
-    res.writeHead(200, { 'content-type': `${MIME[extname(file)] ?? 'application/octet-stream'}; charset=utf-8` })
-    createReadStream(file).pipe(res)
+async function sendStatic(res: ServerResponse, dashboard: Dashboard, pathname: string): Promise<void> {
+    const found = extname(pathname) ? await dashboard.file(pathname) : undefined
+    const [name, body] = found ? [pathname, found] : ['/index.html', await dashboard.file('/index.html')]   // всё прочее — SPA
+    if (!body) {
+        return sendJson(res, 404, { ok: false, error: 'в дашборде нет index.html' })
+    }
+    res.writeHead(200, { 'content-type': MIME[extname(name)] ?? 'application/octet-stream' }).end(body)
 }

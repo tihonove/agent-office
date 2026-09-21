@@ -6,16 +6,16 @@
 // не должна превращаться в молча стоящий узел.
 
 import { readFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import type { Manifest, RoleName } from '@agent-office/shared'
+import schema from '@agent-office/shared/manifest.schema.json' with { type: 'json' }
 import { Ajv } from 'ajv'
+import localizeRu from 'ajv-i18n/localize/ru/index.js'
 import { parse } from 'yaml'
 import { checkReferences } from './references.ts'
 
-const require = createRequire(import.meta.url)
-const schema = require('@agent-office/shared/manifest.schema.json') as object
-const russian = require('ajv-i18n/localize/ru') as (errors: unknown) => void
+// Модуль на CommonJS: `module.exports` и есть функция, а типы обещают `default`.
+const russian = localizeRu as unknown as (errors: unknown) => void
 
 const matchesSchema = new Ajv({ allErrors: true }).compile<Manifest>(schema)
 

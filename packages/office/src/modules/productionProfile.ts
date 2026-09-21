@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { systemClock } from '../adapters/clock.ts'
+import type { Dashboard } from '../adapters/dashboard.ts'
 import { consoleLog } from '../adapters/log-console.ts'
 import { ClockDIToken, LogDIToken } from '../core/ports.ts'
 import type { Loaded } from '../manifest/load.ts'
@@ -21,7 +22,7 @@ export type ProductionProfileContext = {
     port: number
     tickMs: number
     /** Собранная дашборда, если есть. */
-    dashboard?: string
+    dashboard?: Dashboard
 }
 
 /**
@@ -42,6 +43,6 @@ export function createProductionContainer(ctx: ProductionProfileContext): Contai
         .use(filesChannelModule, { places })
         .use(executorsModule, { project: ctx.project, places, fake: ctx.fake })
         .use(officeModule)
-        .use(httpModule, { port: ctx.port, staticDir: ctx.dashboard })
+        .use(httpModule, { port: ctx.port, dashboard: ctx.dashboard })
         .use(heartbeatModule, { everyMs: ctx.tickMs })
 }

@@ -7,6 +7,7 @@
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
+import { loadDashboard } from './adapters/dashboard.ts'
 import { HttpDoorDIToken } from './adapters/http.ts'
 import { LogDIToken } from './core/ports.ts'
 import { loadManifest } from './manifest/load.ts'
@@ -25,7 +26,6 @@ const { values, positionals } = parseArgs({
 
 const project = resolve(positionals[0] ?? '.')
 const manifestFile = join(project, 'office.yaml')
-const dashboard = join(import.meta.dirname, '../../dashboard/dist')
 
 if (!existsSync(manifestFile)) {
     console.error(`В ${project} нет манифеста office.yaml.\nЗапуск: agent-office <каталог проекта> [--fake] [--port 4700] [--tick 2000]`)
@@ -38,7 +38,7 @@ const container = createProductionContainer({
     fake: values.fake,
     port: Number(values.port),
     tickMs: Number(values.tick),
-    dashboard: existsSync(dashboard) ? dashboard : undefined,
+    dashboard: await loadDashboard(),
 })
 
 const log = container.get(LogDIToken)
