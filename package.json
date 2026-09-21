@@ -1,7 +1,21 @@
 {
-  "name": "agent-office-repo",
-  "private": true,
+  "name": "@tihonove/agent-office",
+  "version": "0.0.1",
+  "description": "Офис агентов: проект объявляет манифест, офис его применяет поверх журнала фактов",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tihonove/agent-office.git"
+  },
   "type": "module",
+  "bin": {
+    "agent-office": "dist/agent-office.js"
+  },
+  "files": [
+    "dist/agent-office.js"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=24"
   },
@@ -18,7 +32,9 @@
     "lint:fix": "eslint . --fix",
     "office": "npm run build -w @agent-office/dashboard || { echo '✗ дашборда не собралась — офис не поднимаю, ошибка выше' >&2; exit 1; } && node packages/office/src/main.ts .",
     "stand": "node scripts/stand.ts",
-    "pack": "node scripts/pack.ts"
+    "bundle": "node scripts/bundle.ts",
+    "prepublishOnly": "npm run lint && npm run typecheck && npm test",
+    "prepack": "npm run bundle"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

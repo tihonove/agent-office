@@ -11,7 +11,8 @@ npm start -- <каталог проекта>        # живые агенты (c
 npm run dev                           # дашборда на http://localhost:4701 (проксирует /api в офис)
 npm run lint                          # eslint: отступ 4, фигурные скобки всегда и с новой строки (lint:fix — поправить)
 npm run schema                        # пересобрать схему манифеста из типов
-npm run pack                          # пакет @tihonove/agent-office → dist/tihonove-agent-office-<версия>.tgz
+npm run bundle                        # офис одним файлом → dist/agent-office.js
+npm publish                           # проверки → бандл → реестр (хуки prepublishOnly и prepack); версия — в корневом package.json
 ```
 
 ## Установка
@@ -21,7 +22,7 @@ npm install -g @tihonove/agent-office
 agent-office <каталог проекта> [--fake] [--port 4700] [--tick 2000]
 ```
 
-В пакете один js-файл: офис со всеми зависимостями и вшитой дашбордой (`scripts/pack.ts`). Нужен Node 24+.
+В пакете один js-файл: офис со всеми зависимостями и вшитой дашбордой (`scripts/bundle.ts`). Нужен Node 24+.
 
 ## Конституция (проекту не отдаётся)
 

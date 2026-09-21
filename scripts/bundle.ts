@@ -1,32 +1,29 @@
 #!/usr/bin/env node
-// Пакет @tihonove/agent-office — офис, который ставится из npm и не тянет ни одной зависимости.
+// Бандл пакета @tihonove/agent-office — офис, который ставится из npm и не тянет ни одной зависимости.
 //
-//   npm run pack      → dist/tihonove-agent-office-<версия>.tgz
+//   npm run bundle    → dist/agent-office.js
 //
-// В пакете один js-файл: офис со всеми зависимостями, схемой манифеста и собранной дашбордой внутри.
+// Один js-файл: офис со всеми зависимостями, схемой манифеста и собранной дашбордой внутри.
 // Дашборду вшивает подмена модуля adapters/dashboard.ts: из исходников он читает packages/dashboard/dist с диска,
 // в бандле — отдаёт файлы из памяти. Остальной офис разницы не видит.
 //
-// Внутренние workspaces (@agent-office/*) остаются приватными: публикуется только собранный результат.
-// В реестр пакет кладёт человек (`npm publish dist/package`), этот скрипт наружу не ходит.
+// Публикуется корень репозитория: его package.json называет этот файл в bin и files, а хук prepack зовёт
+// этот скрипт. Поэтому `npm publish` (и `npm pack`) сами собирают свежий бандл; внутренние workspaces
+// (@agent-office/*) остаются приватными.
 
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
 import { build, type Plugin } from 'esbuild'
 
 const REPO = resolve(import.meta.dirname, '..')
 const OUT = join(REPO, 'dist')
-const PACKAGE = join(OUT, 'package')
 const OFFICE = join(REPO, 'packages/office')
 const DASHBOARD = join(REPO, 'packages/dashboard/dist')
 const BIN = 'agent-office.js'
 
-async function pack(): Promise<void> {
-    const { version } = JSON.parse(readFileSync(join(OFFICE, 'package.json'), 'utf8')) as { version: string }
-
+async function bundle(): Promise<void> {
     rmSync(OUT, { recursive: true, force: true })
-    mkdirSync(PACKAGE, { recursive: true })
 
     step('дашборда')
     run('npm', ['run', 'build', '-w', '@agent-office/dashboard'])
@@ -34,7 +31,7 @@ async function pack(): Promise<void> {
     step(`офис одним файлом: ${BIN}`)
     await build({
         entryPoints: [join(OFFICE, 'src/main.ts')],
-        outfile: join(PACKAGE, BIN),
+        outfile: join(OUT, BIN),
         bundle: true,
         platform: 'node',
         format: 'esm',
@@ -45,26 +42,7 @@ async function pack(): Promise<void> {
         logLevel: 'warning',
     })
 
-    step('package.json и README')
-    const manifest = {
-        name: '@tihonove/agent-office',
-        version,
-        description: 'Офис агентов: проект объявляет манифест, офис его применяет поверх журнала фактов',
-        type: 'module',
-        bin: { 'agent-office': BIN },
-        engines: { node: '>=24' },
-    }
-    writeFileSync(join(PACKAGE, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
-    copyFileSync(join(REPO, 'README.md'), join(PACKAGE, 'README.md'))
-    for (const license of ['LICENSE', 'LICENSE.md']) {
-        if (existsSync(join(REPO, license))) {
-            copyFileSync(join(REPO, license), join(PACKAGE, license))
-        }
-    }
-
-    step('tarball')
-    run('npm', ['pack', '--pack-destination', OUT], PACKAGE)
-    console.log(`\nготово: ${join(OUT, `tihonove-agent-office-${version}.tgz`)}`)
+    console.log(`\nготово: ${join(OUT, BIN)}`)
 }
 
 /** Подменяет adapters/dashboard.ts модулем, в котором файлы собранной дашборды лежат прямо в коде. */
@@ -128,4 +106,4 @@ function fail(message: string): never {
     process.exit(1)
 }
 
-await pack()
+await bundle()
