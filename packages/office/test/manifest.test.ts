@@ -45,10 +45,12 @@ test('ошибки смысла ловит проверка ссылок', async
     m.roles['аналитик'].executor = 'gpt'
     m.roles['аналитик'].arrows.start = 'анализз'
     m.transitions[0].when = { answer: { request: 'приёмкаа', is: 'принять' } }
+    m.roles['реализатор'].takes = { машина: 1 }
 
     assert.deepEqual(validate(m), [
         'roles.аналитик: исполнитель «gpt» не объявлен в executors',
         'roles.аналитик.arrows: состояния «анализз» нет ни у одного рода',
+        'roles.реализатор.takes: ресурс «машина» не объявлен в resources',
         'transitions[0].when: запрос «приёмкаа» не объявлен в requests',
     ])
 })

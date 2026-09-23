@@ -1,7 +1,7 @@
 // Перекрёстные ссылки манифеста — то, что схема выразить не может: «это состояние есть у этого рода»,
 // «этот исполнитель объявлен», «default — один из options». Форма к этому моменту уже проверена схемой.
 
-import type { Condition, Duration, Kind, Manifest, State } from '@agent-office/shared'
+import type { Condition, Duration, Kind, Manifest, State, Takes } from '@agent-office/shared'
 import { parseDuration } from '../core/conditions.ts'
 import { asList } from '../core/lists.ts'
 
@@ -59,6 +59,14 @@ export function checkReferences(m: Manifest): string[] {
         nested.forEach((sub) => condition(where, sub))
     }
 
+    const takes = (where: string, t: Takes | undefined) => {
+        Object.keys(t ?? {}).forEach((resource) => {
+            if (m.resources?.[resource] === undefined) {
+                complain(where, `ресурс «${resource}» не объявлен в resources`)
+            }
+        })
+    }
+
     // ── Разделы манифеста ──
 
     stateOfKind('inbox', m.inbox.kind, m.inbox.state)
@@ -69,6 +77,7 @@ export function checkReferences(m: Manifest): string[] {
 
     for (const [name, executor] of Object.entries(m.executors)) {
         duration(`executors.${name}.resumeWithin`, executor.resumeWithin)
+        takes(`executors.${name}.takes`, executor.takes)
     }
 
     for (const [name, role] of Object.entries(m.roles)) {
@@ -77,6 +86,7 @@ export function checkReferences(m: Manifest): string[] {
             complain(where, `исполнитель «${role.executor}» не объявлен в executors`)
         }
         condition(`${where}.when`, role.when)
+        takes(`${where}.takes`, role.takes)
 
         const arrowStates = [role.arrows?.start, ...Object.values(role.arrows?.outcomes ?? {})]
         arrowStates.forEach((state) => state !== undefined && stateOfAnyKind(`${where}.arrows`, state))

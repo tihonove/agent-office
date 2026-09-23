@@ -25,6 +25,19 @@ export type Outcome = string
 /** Имя исполнителя из раздела `executors` манифеста. */
 export type ExecutorName = string
 
+/** Имя ресурса из раздела `resources` манифеста: «машина», «opus»… */
+export type ResourceName = string
+
+/**
+ * Сколько ресурса: ёмкость в `resources` или доля в `takes`. Целое, не меньше нуля.
+ * @minimum 0
+ * @asType integer
+ */
+export type Amount = number
+
+/** Что берёт агент на время жизни: ресурс → сколько. */
+export type Takes = Record<ResourceName, Amount>
+
 /** Адресат артефакта: имя роли или `'*'` — всем. */
 export type Reader = RoleName | '*'
 

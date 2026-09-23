@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import type { AgentKey, Manifest } from '@agent-office/shared'
+import type { AgentKey, Manifest, NodeId } from '@agent-office/shared'
 import { scriptFromDir, type Script } from '../src/adapters/executor-fake.ts'
 import { fold } from '../src/core/fold.ts'
 import { file, openOffice } from './harness.ts'
@@ -212,4 +212,69 @@ test('judge: пока вердикта нет, условие не выполн�
     await settle()
     assert.equal(node(id).state, 'готово')
     assert.deepEqual((await snapshots.snapshot()).pendingJudgements, [])
+})
+
+test('ресурсы: тяжёлые роли делят одну машину; кому не хватило, ждёт, не двигая узел', async () => {
+    const fromDir = scriptFromDir(join(TOY, 'fake'))
+    const hung = new Set<AgentKey>()
+    const { journal, desk, executor, settle, node } = await setup((req) => {
+        // Каждый аналитик зависает в первом воплощении, дальше работает по заготовке
+        if (req.role === 'аналитик' && !hung.has(req.key)) {
+            hung.add(req.key)
+            return 'hang'
+        }
+        return fromDir(req)
+    }, (m) => {
+        m.resources = { машина: 1 }
+        m.roles['аналитик']!.takes = { машина: 1 }
+        m.roles['реализатор']!.takes = { машина: 1 }
+    })
+    const first = await desk.createNode({ fields: { описание: 'первая' } })
+    const second = await desk.createNode({ fields: { описание: 'вторая' } })
+    await settle()
+
+    assert.deepEqual(executor.spawned.map((r) => r.key), [`аналитик/${first}`], 'вторая ждёт машину')
+    assert.deepEqual([node(first).state, node(second).state], ['анализ', 'новая'])
+
+    executor.release(`аналитик/${first}` as AgentKey)
+    await settle()
+    assert.deepEqual(executor.spawned.map((r) => r.key), [
+        `аналитик/${first}`, `аналитик/${first}`, `реализатор/${first}`, `аналитик/${second}`,
+    ], 'первая заявка дошла до приёмки, и только потом машину получила вторая')
+    assert.deepEqual([node(first).state, node(second).state], ['приёмка', 'анализ'])
+    assert.equal([...journal.world().assignments.values()].filter((a) => a.status.is === 'alive').length, 1)
+})
+
+test('ресурсы: доля исполнителя, поверх — доля роли; освободилось — заходит следующий по старшинству', async () => {
+    const fromDir = scriptFromDir(join(TOY, 'fake'))
+    const hung = new Set<AgentKey>()
+    const { desk, executor, settle } = await setup((req) => {
+        if (req.role === 'аналитик' && !hung.has(req.key)) {
+            hung.add(req.key)
+            return 'hang'
+        }
+        return fromDir(req)
+    }, (m) => {
+        // opus: 3, каждый агент берёт 1, реализатор — 3: ему нужна вся ёмкость
+        m.resources = { opus: 3 }
+        m.executors['claude']!.takes = { opus: 1 }
+        m.roles['реализатор']!.takes = { opus: 3 }
+    })
+    const ids: NodeId[] = []
+    for (const i of [1, 2, 3, 4]) {
+        ids.push(await desk.createNode({ fields: { описание: `заявка ${i}` } }))
+    }
+    await settle()
+    assert.deepEqual(executor.spawned.map((r) => r.key), [`аналитик/${ids[0]}`, `аналитик/${ids[1]}`, `аналитик/${ids[2]}`])
+
+    // Первый аналитик отработал: его реализатору нужны все три доли, а две заняты — он ждёт, четвёртый аналитик проходит
+    executor.release(`аналитик/${ids[0]}` as AgentKey)
+    await settle()
+    assert.deepEqual(executor.spawned.map((r) => r.key).slice(3), [`аналитик/${ids[0]}`, `аналитик/${ids[3]}`])
+
+    for (const id of ids.slice(1)) {
+        executor.release(`аналитик/${id}` as AgentKey)
+    }
+    await settle()
+    assert.ok(executor.spawned.some((r) => r.key === `реализатор/${ids[0]}`), 'ёмкость освободилась — реализатор поднялся')
 })

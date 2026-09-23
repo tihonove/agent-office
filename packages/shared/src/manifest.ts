@@ -1,6 +1,8 @@
 import type { Condition } from './condition.ts'
 import type { Role } from './role.ts'
-import type { ArtifactKind, Duration, ExecutorName, FieldName, Kind, OneOrMany, RoleName, State } from './words.ts'
+import type {
+    Amount, ArtifactKind, Duration, ExecutorName, FieldName, Kind, OneOrMany, ResourceName, RoleName, State, Takes,
+} from './words.ts'
 
 /**
  * Манифест — всё, что проект объявляет офису (`office.yaml`). Офис не знает слов «аналитик» или «приёмка»:
@@ -27,6 +29,12 @@ export type Manifest = {
     /** Когда звать человека и что будет, если он промолчит. */
     requests?: RequestDecl[]
 
+    /**
+     * Ресурсы: имя → ёмкость. Агент поднимается, только если всё, что он берёт (`takes`), свободно,
+     * и держит взятое, пока жив. Кому не хватило — ждёт следующего тика, узел не двигается.
+     */
+    resources?: Record<ResourceName, Amount>
+
     /** Карта областей: имя → пути. Офис её не толкует, только кладёт в проекцию. */
     areas?: Record<string, string[]>
 
@@ -48,6 +56,8 @@ export type ExecutorDecl = {
     args?: string[]
     /** Разрыв короче — продолжаем сессию, длиннее — начинаем начисто от проекции. По умолчанию 1h. */
     resumeWithin?: Duration
+    /** Что берёт из `resources` каждый агент на этом исполнителе. Роль может добавить своё (`roles.*.takes`). */
+    takes?: Takes
 }
 
 /** Переход: `from → to when …`. На узел — один переход за тик, первый подходящий. */

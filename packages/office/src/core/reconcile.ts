@@ -10,6 +10,7 @@ import type {
 } from '@agent-office/shared'
 import { evaluate, parseDuration } from './conditions.ts'
 import { agentKey } from './keys.ts'
+import { missingResource } from './resources.ts'
 import { asList } from './lists.ts'
 import { planProjection } from './projection.ts'
 import { assignmentOf, childrenOf, inCurrentEpoch, isLeaf, requestsOf, type World } from './world.ts'
@@ -90,6 +91,7 @@ const deadlines: Step = ({ world, now }) =>
 
 const wakeWaiting: Step = (s) => {
     const actions: Action[] = []
+    const raisedNow: RoleName[] = []
     for (const a of s.world.assignments.values()) {
         if (a.status.is !== 'waiting' || s.running.has(a.key)) {
             continue
@@ -100,9 +102,14 @@ const wakeWaiting: Step = (s) => {
         if (request && !request.answer) {
             continue
         }
+        // Ресурсы заняты — дождёмся следующего тика
+        if (missingResource(s.manifest, s.world, a.role, raisedNow)) {
+            continue
+        }
 
         const reason = request ? answered(request) : `Проекция дополнена тем, что ты просил дотянуть: ${a.extra.join(', ')}`
         actions.push(raise(s, a.role, s.world.nodes.get(a.node)!, reason))
+        raisedNow.push(a.role)
     }
     return actions
 }
@@ -198,11 +205,13 @@ const openRequests: Step = ({ world, manifest, now }) => {
     return facts.length ? [{ facts }] : []
 }
 
-// ── 7. Роли: где нужен агент, которого нет ──────────────────────────────────────────────────────────────────
+// ── 7. Роли: где нужен агент, которого нет, — и хватает ресурсов ────────────────────────────────────────────
+// Узлы идут в порядке рождения: кто раньше встал в очередь за местом, тот раньше его получит.
 
 const roles: Step = (s) => {
     const { world, manifest } = s
     const actions: Action[] = []
+    const raisedNow: RoleName[] = []
 
     for (const node of world.nodes.values()) {
         for (const name of Object.keys(manifest.roles)) {
@@ -218,8 +227,13 @@ const roles: Step = (s) => {
             if (!reason) {
                 continue
             }
+            // Ресурсы заняты: узел остаётся где был, попробуем на следующем тике
+            if (missingResource(manifest, world, name, raisedNow)) {
+                continue
+            }
 
             actions.push(raise(s, name, node, reason))
+            raisedNow.push(name)
             break   // одна роль на узел за шаг: стрелка start меняет состояние, остальные предикаты надо считать заново
         }
     }

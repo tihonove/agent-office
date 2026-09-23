@@ -2,6 +2,11 @@
   "$ref": "#/definitions/Manifest",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
+    "Amount": {
+      "description": "Сколько ресурса: ёмкость в `resources` или доля в `takes`. Целое, не меньше нуля.",
+      "minimum": 0,
+      "type": "integer"
+    },
     "AnswerCondition": {
       "additionalProperties": false,
       "properties": {
@@ -159,6 +164,10 @@
           "$ref": "#/definitions/Duration",
           "description": "Разрыв короче — продолжаем сессию, длиннее — начинаем начисто от проекции. По умолчанию 1h."
         },
+        "takes": {
+          "$ref": "#/definitions/Takes",
+          "description": "Что берёт из `resources` каждый агент на этом исполнителе. Роль может добавить своё (`roles.*.takes`)."
+        },
         "type": {
           "description": "Какой адаптер исполняет: `claude`, `fake`…",
           "type": "string"
@@ -286,6 +295,16 @@
             "$ref": "#/definitions/RequestDecl"
           },
           "type": "array"
+        },
+        "resources": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Amount"
+          },
+          "description": "Ресурсы: имя → ёмкость. Агент поднимается, только если всё, что он берёт (`takes`), свободно, и держит взятое, пока жив. Кому не хватило — ждёт следующего тика, узел не двигается.",
+          "propertyNames": {
+            "description": "Имя ресурса из раздела `resources` манифеста: «машина», «opus»…"
+          },
+          "type": "object"
         },
         "roles": {
           "additionalProperties": {
@@ -434,6 +453,10 @@
           },
           "type": "array"
         },
+        "takes": {
+          "$ref": "#/definitions/Takes",
+          "description": "Что берёт из `resources` сверх исполнителя; по одноимённому ресурсу роль перекрывает исполнителя."
+        },
         "when": {
           "$ref": "#/definitions/Condition",
           "description": "Предикат: на каких узлах нужен агент этой роли."
@@ -519,6 +542,16 @@
     "State": {
       "description": "Состояние узла: «новая», «в работе», «готово»… Набор состояний у каждого рода свой.",
       "type": "string"
+    },
+    "Takes": {
+      "additionalProperties": {
+        "$ref": "#/definitions/Amount"
+      },
+      "description": "Что берёт агент на время жизни: ресурс → сколько.",
+      "propertyNames": {
+        "description": "Имя ресурса из раздела `resources` манифеста: «машина», «opus»…"
+      },
+      "type": "object"
     },
     "TransitionDecl": {
       "additionalProperties": false,

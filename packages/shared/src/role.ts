@@ -1,5 +1,5 @@
 import type { Condition } from './condition.ts'
-import type { ArtifactKind, ExecutorName, FieldName, Outcome, State } from './words.ts'
+import type { ArtifactKind, ExecutorName, FieldName, Outcome, State, Takes } from './words.ts'
 
 /**
  * Роль — кто и когда нужен узлу. Объявляется в манифесте; офис лишь сверяет:
@@ -23,6 +23,9 @@ export type Role = {
 
     /** Стрелки: как заход роли двигает состояние узла. */
     arrows?: Arrows
+
+    /** Что берёт из `resources` сверх исполнителя; по одноимённому ресурсу роль перекрывает исполнителя. */
+    takes?: Takes
 }
 
 export type SeesRule = {
