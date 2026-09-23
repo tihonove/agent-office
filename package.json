@@ -1,6 +1,6 @@
 {
   "name": "@tihonove/agent-office",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Офис агентов: проект объявляет манифест, офис его применяет поверх журнала фактов",
   "repository": {
     "type": "git",
