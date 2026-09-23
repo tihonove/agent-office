@@ -13,6 +13,7 @@ npm run lint                          # eslint: отступ 4, фигурные
 npm run schema                        # пересобрать схему манифеста из типов
 npm run bundle                        # офис одним файлом → dist/agent-office.js
 npm publish                           # проверки → бандл → реестр (хуки prepublishOnly и prepack); версия — в корневом package.json
+npm version patch && git push --follow-tags   # выпуск: тег vX.Y.Z запускает .github/workflows/release.yml → npm
 ```
 
 ## Установка

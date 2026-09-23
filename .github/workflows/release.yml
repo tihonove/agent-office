@@ -1,0 +1,41 @@
+# Выпуск в npm по тегу. Новая версия — это `npm version patch` (или minor/major): он поднимет версию
+# в корневом package.json, сделает коммит и тег vX.Y.Z; затем `git push --follow-tags`.
+#
+# Токен не нужен: npm доверяет подписи GitHub (trusted publishing). Один раз на npmjs.com в настройках пакета
+# @tihonove/agent-office → Trusted Publisher → GitHub Actions: владелец tihonove, репозиторий agent-office,
+# workflow release.yml. Заодно npm сам приложит provenance — откуда собран пакет.
+#
+# Проверки и сборка бандла — хуки самого npm publish: prepublishOnly (lint, typecheck, test) и prepack (bundle).
+
+name: выпуск в npm
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write   # подпись для trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      - name: тег должен совпадать с версией в package.json
+        run: |
+          expected="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "тег $GITHUB_REF_NAME, а в package.json версия $expected" >&2
+            exit 1
+          fi
+
+      - run: npm publish
