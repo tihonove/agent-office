@@ -1,7 +1,7 @@
 import type { ExecutorDecl, ExecutorName } from '@agent-office/shared'
 import { ClaudeExecutor } from '../adapters/executor-claude.ts'
 import { FakeExecutor, scriptFromDir } from '../adapters/executor-fake.ts'
-import { ExecutorsDIToken, type Executor } from '../core/ports.ts'
+import { ExecutorsDIToken, LogDIToken, type Executor } from '../core/ports.ts'
 import { ManifestDIToken } from '../manifest/tokens.ts'
 import type { ContainerModule } from '../platform/di/container.ts'
 
@@ -21,7 +21,7 @@ export const executorsModule: ContainerModule<ExecutorsModuleContext> = (contain
             return new FakeExecutor(scriptFromDir(`${project}/fake`))
         }
         if (decl.type === 'claude') {
-            return new ClaudeExecutor({ cwd: project, places })
+            return new ClaudeExecutor({ cwd: project, places, log: container.get(LogDIToken) })
         }
         throw new Error(`исполнитель «${name}»: не знаю тип «${decl.type}»`)
     }

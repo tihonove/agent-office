@@ -7,14 +7,16 @@ import { readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentKey } from '@agent-office/shared'
-import type { Executor, SpawnRequest } from '../core/ports.ts'
+import type { Executor, Log, SpawnRequest } from '../core/ports.ts'
 
 export class ClaudeExecutor implements Executor {
     private cwd: string     // корень проекта
     private places: string  // каталог назначений файлового канала: <places>/<роль>/<узел>
-    constructor(opts: { cwd: string; places: string }) {
+    private log: Log        // куда сказать, если писать транскрипт стало некуда
+    constructor(opts: { cwd: string; places: string; log: Log }) {
         this.cwd = opts.cwd
         this.places = opts.places
+        this.log = opts.log
     }
 
     async spawn(req: SpawnRequest): Promise<void> {
@@ -29,14 +31,31 @@ export class ClaudeExecutor implements Executor {
             ...(req.decl.model ? ['--model', req.decl.model] : []),
             ...(req.decl.args ?? []),
         ]
-        const log = createWriteStream(join(req.place, 'транскрипт.jsonl'), { flags: 'a' })
+        const transcript = createWriteStream(join(req.place, 'транскрипт.jsonl'), { flags: 'a' })
         const child = spawn('claude', args, { cwd: this.cwd, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, OFFICE_PLACE: req.place } })
-        child.stdout.pipe(log, { end: false })
-        child.stderr.pipe(log, { end: false })
+        child.stdout.pipe(transcript, { end: false })
+        child.stderr.pipe(transcript, { end: false })
+        // Транскрипт — удобство человека, а не работа офиса: если писать стало некуда (кончилось место,
+        // снесли каталог), офис не падает вместе с записью. Агент работает дальше, его вывод уходит в никуда.
+        transcript.once('error', (e) => {
+            child.stdout.unpipe(transcript)
+            child.stderr.unpipe(transcript)
+            child.stdout.resume()  // без слушателя вывод копится в трубе и агент встаёт на записи — сливаем
+            child.stderr.resume()
+            transcript.destroy()
+            this.log.error(`${req.key}: транскрипт не пишется, агент работает без него`, e)
+        })
+        const say = (line: object) => {
+            if (!transcript.destroyed) {
+                transcript.write(JSON.stringify(line) + '\n')
+            }
+        }
         const pidFile = join(req.place, 'pid')
-        child.on('error', (e) => log.write(JSON.stringify({ type: 'office', error: String(e) }) + '\n'))
+        child.on('error', (e) => say({ type: 'office', error: String(e) }))
         child.on('close', () => {
-            log.end()
+            if (!transcript.destroyed) {
+                transcript.end()
+            }
             void rm(pidFile, { force: true })
         })
         if (child.pid) {

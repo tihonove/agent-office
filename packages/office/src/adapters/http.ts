@@ -72,6 +72,13 @@ export class HttpDoor {
         const server = createServer((req, res) => {
             // Ошибку офиса («на запрос уже дан ответ») отдаём человеку как есть.
             this.handle(req, res).catch((e: unknown) => {
+                // Если ответ уже начат (поток событий, статика), сказать об ошибке нечем — просто рвём соединение:
+                // упавший запрос человека не повод падать офису.
+                if (res.headersSent) {
+                    this.log.error(`дверь: ${req.method} ${req.url}`, e)
+                    res.destroy()
+                    return
+                }
                 sendJson(res, 400, { ok: false, error: e instanceof Error ? e.message : String(e) })
             })
         })
@@ -116,7 +123,13 @@ export class HttpDoor {
     /** SSE: событие на каждую запись в журнал; дашборда в ответ перечитывает снимок. */
     private async streamEvents(req: IncomingMessage, res: ServerResponse): Promise<Reply> {
         res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
-        const ping = () => res.write(`data: ${this.journal.facts().length}\n\n`)
+        // Дашборду могли закрыть между фактом и записью: пишем, только пока ответ жив.
+        res.on('error', () => res.destroy())
+        const ping = () => {
+            if (res.writable) {
+                res.write(`data: ${this.journal.facts().length}\n\n`)
+            }
+        }
         ping()
         req.on('close', this.journal.onFacts(ping))
         return 'stream'
